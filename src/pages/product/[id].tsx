@@ -1,5 +1,8 @@
-import { GetStaticProps } from 'next'
+import { GetStaticPaths, GetStaticProps } from 'next'
+import Head from 'next/head'
 import Image from 'next/image'
+import { useState } from 'react'
+import axios from 'axios'
 import Stripe from 'stripe'
 
 import { stripe } from '../../lib/stripe'
@@ -13,26 +16,64 @@ interface ProductProps {
     imageUrl: string
     price: string
     description: string
+    defaultPriceId: string
   }
 }
 
 export default function Product({ product }: ProductProps) {
+  const title = `${product.name} | Ignite Shop`
+  const [isWaiting, setIsWaiting] = useState(false)
+
+  async function handleBuyProduct() {
+    setIsWaiting(true)
+    try {
+      const res = await axios.post('/api/checkout', {
+        priceId: product.defaultPriceId
+      })
+
+      const { checkoutUrl } = res.data
+
+      window.location.href = checkoutUrl
+    } catch (e) {
+      alert('Deu não')
+      setIsWaiting(false)
+    }
+  }
   return (
-    <ProductContainer>
-      <ImageContainer>
-        <Image src={product.imageUrl} width={520} height={480} alt='' />
-      </ImageContainer>
+    <>
+      <Head>
+        <title>{title}</title>
+      </Head>
 
-      <ProductDetails>
-        <h1>{product.name}</h1>
-        <span>{product.price}</span>
+      <ProductContainer>
+        <ImageContainer>
+          <Image src={product.imageUrl} width={520} height={480} alt='' />
+        </ImageContainer>
 
-        <p>{product.description}</p>
+        <ProductDetails>
+          <h1>{product.name}</h1>
+          <span>{product.price}</span>
 
-        <button>Comprar Agora</button>
-      </ProductDetails>
-    </ProductContainer>
+          <p>{product.description}</p>
+
+          <button
+            disabled={isWaiting}
+            onClick={handleBuyProduct}>
+            Comprar Agora
+          </button>
+        </ProductDetails>
+      </ProductContainer>
+    </>
   )
+}
+
+export const getStaticPaths: GetStaticPaths = async () => {
+  return {
+    paths: [
+      { params: { id: 'prod_MtFLjyx83AFVuv' } }
+    ],
+    fallback: 'blocking'
+  }
 }
 
 export const getStaticProps: GetStaticProps<any, { id: string }> = async ({ params }) => {
@@ -53,7 +94,8 @@ export const getStaticProps: GetStaticProps<any, { id: string }> = async ({ para
           style: 'currency',
           currency: 'BRL'
         }).format(price.unit_amount! / 100),
-        description: response.description
+        description: response.description,
+        defaultPriceId: price.id
       }
     },
     revalidate: 60 * 60 * 1
